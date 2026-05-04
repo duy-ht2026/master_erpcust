@@ -5,12 +5,12 @@ import {
 
 /**
  * PROJECT: Checker [ERP Customer]
- * VERSION: 2.2.0
+ * VERSION: 2.3.0
  * UPDATES: 
- * - Custom Modal for Export Confirmation with Error Warning
- * - Excel Export: Bold & Red text for Row 1 and Row 2
- * - Keep Bold text for specific columns in UI
- * - Keep DATE logic: Clear if not a valid date
+ * - CUST_CODE "NEW" highlighted with Gold color
+ * - Footer: Shortened to "DB Synchronized" with link to masterdb.vercel.app
+ * - Table: Zebra striping for non-error rows
+ * - Logic: Stop processing if (CUST_CODE, CUST_NAME, PHUONG_XA_NEW, TAX_CODE) are all empty
  */
 
 const SUPABASE_URL = "https://etdnpahmxdeurxlcuwcu.supabase.co";
@@ -130,7 +130,15 @@ const Checker10 = () => {
   };
 
   const processRow = async (row, idx) => {
-    if (row.length === 0 || row.every(cell => cell === "")) return null;
+    // Logic kết thúc file: Nếu CUST_CODE, CUST_NAME, PHUONG_XA_NEW, TAX_CODE đều trống
+    const cCode = row[1]?.toString().trim() || "";
+    const cName = row[2]?.toString().trim() || "";
+    const pXa = row[5]?.toString().trim() || "";
+    const tCode = row[12]?.toString().trim() || "";
+
+    if (!cCode && !cName && !pXa && !tCode) {
+      return "STOP_PROCESSING"; 
+    }
 
     const content = COLUMN_NAMES.map((_, cIdx) => {
       const cell = row[cIdx];
@@ -241,10 +249,13 @@ const Checker10 = () => {
         
         if (rawJson.length >= 3) {
           const rowsToProcess = rawJson.slice(3);
-          const results = await Promise.all(
-            rowsToProcess.map((row, idx) => processRow(row, idx))
-          );
-          setData(results.filter(item => item !== null));
+          const results = [];
+          for (let i = 0; i < rowsToProcess.length; i++) {
+            const res = await processRow(rowsToProcess[i], i);
+            if (res === "STOP_PROCESSING") break; // Ngừng nạp dữ liệu ngay khi gặp dòng trống thỏa điều kiện
+            if (res !== null) results.push(res);
+          }
+          setData(results);
         }
       } catch (err) { 
         console.error("Lỗi xử lý file:", err); 
@@ -278,7 +289,6 @@ const Checker10 = () => {
           case "FIX_Currency": return "VND";
           case "CHANNEL": return raw[8];
           case "SALEMAN": return raw[11];
-          case "FIX_BGcha": return "";
           case "BIZ_CODE": return raw[19];
           case "CUST_ADDRESS": return raw[4];
           case "PAYM_TERM": return "COD";
@@ -295,7 +305,6 @@ const Checker10 = () => {
           case "FIX_B": return "0";
           case "FIX_CN": return "C";
           default: 
-            if (header.startsWith("FIX_") || header.startsWith("Fix_")) return ""; 
             return "";
         }
       });
@@ -309,24 +318,15 @@ const Checker10 = () => {
 
     const ws = window.XLSX.utils.aoa_to_sheet(finalAOA);
 
-    // Bôi đậm và tô màu đỏ cho dòng 1 và dòng 2
-    // Lưu ý: Tính năng Style yêu cầu thư viện xlsx-js-style hoặc SheetJS Pro.
-    // Với thư viện cộng đồng 'xlsx', style thường bị bỏ qua, nhưng ta áp dụng cấu trúc cell object để hỗ trợ tốt nhất
     const range = window.XLSX.utils.decode_range(ws['!ref']);
     for (let C = range.s.c; C <= range.e.c; ++C) {
-      // Dòng 1 (Row 0)
       const cell1 = ws[window.XLSX.utils.encode_cell({ r: 0, c: C })];
       if (cell1) {
-        cell1.s = {
-          font: { bold: true, color: { rgb: "FF0000" } }
-        };
+        cell1.s = { font: { bold: true, color: { rgb: "FF0000" } } };
       }
-      // Dòng 2 (Row 1)
       const cell2 = ws[window.XLSX.utils.encode_cell({ r: 1, c: C })];
       if (cell2) {
-        cell2.s = {
-          font: { bold: true, color: { rgb: "FF0000" } }
-        };
+        cell2.s = { font: { bold: true, color: { rgb: "FF0000" } } };
       }
     }
 
@@ -342,7 +342,7 @@ const Checker10 = () => {
 
   return (
     <div className="flex flex-col h-screen bg-[#f8fafc] font-sans overflow-hidden text-slate-800">
-      {/* Confirmation Modal */}
+      {/* Modal xác nhận Export */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"></div>
@@ -368,7 +368,7 @@ const Checker10 = () => {
                     <AlertCircle size={16} className="text-red-600 shrink-0 mt-0.5" />
                     <div className="text-[11px] leading-relaxed">
                       <span className="font-black text-red-700 uppercase underline block mb-1">Cảnh báo: Phát hiện {errorCount} dòng lỗi!</span>
-                      Dữ liệu đang có các giá trị trống hoặc sai danh mục. File xuất ra có thể sẽ không được chấp nhận khi import vào hệ thống ERP. Bạn vẫn muốn tiếp tục?
+                      Dữ liệu đang có các giá trị trống hoặc sai danh mục. File xuất ra có thể sẽ không được chấp nhận. Bạn vẫn muốn tiếp tục?
                     </div>
                   </div>
                 </div>
@@ -396,10 +396,7 @@ const Checker10 = () => {
                 </button>
               </div>
             </div>
-            <button 
-              onClick={() => setShowConfirmModal(false)}
-              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600"
-            >
+            <button onClick={() => setShowConfirmModal(false)} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600">
               <X size={18} />
             </button>
           </div>
@@ -417,7 +414,7 @@ const Checker10 = () => {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-black/10 border border-white/10">
             <div className={`w-1.5 h-1.5 rounded-full ${dbStatus === 'online' ? 'bg-emerald-400' : 'bg-red-500'}`}></div>
-            <span className="text-[9px] font-bold uppercase">{dbStatus === 'online' ? 'Database Active' : 'Connecting...'}</span>
+            <span className="text-[9px] font-bold uppercase">{dbStatus === 'online' ? 'DB Active' : 'Connecting...'}</span>
             <button onClick={fetchMasterData} className="hover:rotate-180 transition-transform ml-0.5 opacity-70 hover:opacity-100">
               <RefreshCw size={10}/>
             </button>
@@ -437,13 +434,7 @@ const Checker10 = () => {
               Xuất File
             </button>
             <div className="w-[1px] h-4 bg-white/20 mx-1"></div>
-            <a 
-              href="https://checkmst.vercel.app/" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-white hover:text-emerald-100 transition-colors"
-              title="Kiểm tra mã số thuế"
-            >
+            <a href="https://checkmst.vercel.app/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-white hover:text-emerald-100 transition-colors">
               <ExternalLink size={14} />
               <span className="text-[9px] font-bold underline underline-offset-4 decoration-white/40 uppercase">Kiểm MST</span>
             </a>
@@ -467,7 +458,7 @@ const Checker10 = () => {
                         <div className="w-2 h-2 bg-amber-500 rounded-sm"></div> Sai Danh Mục
                     </div>
                     <div className="flex items-center gap-1.5 text-[8px] font-bold text-slate-500 uppercase">
-                        <span className="text-red-600 font-black">NEW</span> = Khách Mới
+                        <span className="text-red-600 font-black px-1 rounded bg-yellow-400">NEW</span> = Khách Mới
                     </div>
                  </div>
               </div>
@@ -484,7 +475,7 @@ const Checker10 = () => {
                 <div className="absolute inset-0 bg-white/60 z-50 flex items-center justify-center backdrop-blur-[1px]">
                     <div className="flex flex-col items-center gap-2">
                         <RefreshCw className="animate-spin text-[#057a10]" size={24} />
-                        <span className="text-[9px] font-black uppercase tracking-widest text-[#057a10]">Đang đối soát địa chỉ Database...</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-[#057a10]">Đang xử lý dữ liệu...</span>
                     </div>
                 </div>
               )}
@@ -493,14 +484,11 @@ const Checker10 = () => {
                   <tr className="bg-slate-800 text-slate-300 sticky top-0 z-40">
                     <th className="w-10 px-1 py-1.5 text-center border-b border-r border-slate-600 font-bold uppercase bg-slate-900 sticky left-0 z-50">#</th>
                     {COLUMN_NAMES.map((h, i) => (
-                      <th 
-                        key={i} 
-                        style={{ width: i === 4 ? '280px' : 'auto', maxWidth: i === 4 ? '280px' : '250px' }}
+                      <th key={i} style={{ width: i === 4 ? '280px' : 'auto', maxWidth: i === 4 ? '280px' : '250px' }}
                         className={`px-2 py-1.5 text-left border-b border-r border-slate-600 font-bold uppercase whitespace-nowrap
                           ${[5, 8, 9, 10].includes(i) ? 'bg-slate-700 text-emerald-300' : ''}
                           ${i >= 19 ? 'bg-indigo-950 text-indigo-200' : ''}
-                        `}
-                      >
+                        `}>
                         {h}
                       </th>
                     ))}
@@ -508,8 +496,11 @@ const Checker10 = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-300">
                   {data.map((row, idx) => (
-                    <tr key={idx} className={`${row.isError ? 'bg-red-50/50' : 'bg-white'} hover:bg-slate-50 transition-colors h-[28px]`}>
-                      <td className={`px-1 py-1 text-center font-bold border-r border-slate-300 sticky left-0 z-20 ${row.isError ? 'text-red-600 bg-red-50' : 'text-slate-400 bg-white'}`}>
+                    <tr key={idx} className={`
+                      ${row.isError ? 'bg-red-50/50' : (idx % 2 === 1 ? 'bg-slate-50' : 'bg-white')}
+                      hover:bg-emerald-50/40 transition-colors h-[28px]
+                    `}>
+                      <td className={`px-1 py-1 text-center font-bold border-r border-slate-300 sticky left-0 z-20 ${row.isError ? 'text-red-600 bg-red-50' : 'text-slate-400'}`}>
                         {row.rowNumber}
                       </td>
                       {row.content.map((cell, cIdx) => {
@@ -517,7 +508,8 @@ const Checker10 = () => {
                         const isDbErr = row.databaseErrors.includes(cIdx);
                         const isMap = row.mappedIndices.includes(cIdx);
                         const isAddress = cIdx === 4;
-                        const isErrAddr = cell === "ERR_ADDR";
+                        const isCustCode = cIdx === 1;
+                        const isNew = isCustCode && cell === "NEW";
                         
                         const isTargetBold = [1, 9, 10, 12, 14].includes(cIdx);
 
@@ -533,14 +525,15 @@ const Checker10 = () => {
                           tdClass += " bg-amber-500 text-white font-bold";
                         } else if (isMap) {
                           tdClass += " bg-indigo-50 text-indigo-900 font-bold border-l border-indigo-300";
+                        } else if (isNew) {
+                          tdClass += " bg-yellow-400 text-black font-black"; // Tô màu Gold (Vàng) cho CUST_CODE NEW
                         }
 
                         return (
                           <td key={cIdx} className={tdClass} style={style} title={cell}>
                             <span className={`
                               ${isTargetBold ? "font-bold text-slate-900" : ""}
-                              ${cIdx === 1 && cell === "NEW" ? "text-red-600 font-black" : ""}
-                              ${isErrAddr ? "text-amber-600 font-bold" : ""}
+                              ${isNew ? "tracking-tighter" : ""}
                             `}>
                               {isValErr ? (cell || "TRỐNG") : isDbErr ? (cell || "KO_KHỚP") : cell}
                             </span>
@@ -568,10 +561,6 @@ const Checker10 = () => {
                     <span className="text-[8px] font-bold text-slate-400 uppercase">Address Records</span>
                     <span className="text-base font-black text-slate-600">{addressPreviewCount.toLocaleString()}</span>
                 </div>
-                <div className="px-5 py-2 bg-slate-50 rounded-xl border border-slate-200 flex flex-col items-center min-w-[100px]">
-                    <span className="text-[8px] font-bold text-slate-400 uppercase">Database Mode</span>
-                    <span className="text-base font-black text-[#057a10]">CONNECTED</span>
-                </div>
             </div>
           </div>
         )}
@@ -581,9 +570,12 @@ const Checker10 = () => {
         <div>
           <span>© {new Date().getFullYear()} [IT-Master HTCorp] - ERP Customer Validation Tool</span>
         </div>
-        <div className="flex items-center gap-2">
-            <div className={`w-1.5 h-1.5 rounded-full ${dbStatus === 'online' ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
-            <span>{dbStatus === 'online' ? 'Database Synchronized' : 'Database Offline'}</span>
+        <div className="flex items-center gap-3">
+            <a href="https://masterdb.vercel.app/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-emerald-600 transition-colors">
+              <div className={`w-1.5 h-1.5 rounded-full ${dbStatus === 'online' ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+              <span>{dbStatus === 'online' ? 'DB Synchronized' : 'DB Offline'}</span>
+              <ExternalLink size={10} className="ml-1 opacity-50"/>
+            </a>
         </div>
       </footer>
     </div>
