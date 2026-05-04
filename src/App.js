@@ -5,12 +5,11 @@ import {
 
 /**
  * PROJECT: Checker [ERP Customer]
- * VERSION: 2.3.0
+ * VERSION: 2.3.2
  * UPDATES: 
- * - CUST_CODE "NEW" highlighted with Gold color
- * - Footer: Shortened to "DB Synchronized" with link to masterdb.vercel.app
- * - Table: Zebra striping for non-error rows
- * - Logic: Stop processing if (CUST_CODE, CUST_NAME, PHUONG_XA_NEW, TAX_CODE) are all empty
+ * - Fixed row.rowNumber background to bg-indigo-100
+ * - isNew Customer CUST_CODE background to bg-yellow-100 + font-bold
+ * - Strengthened row colors: bg-red-100, bg-slate-100, hover:bg-emerald-100
  */
 
 const SUPABASE_URL = "https://etdnpahmxdeurxlcuwcu.supabase.co";
@@ -130,12 +129,12 @@ const Checker10 = () => {
   };
 
   const processRow = async (row, idx) => {
-    // Logic kết thúc file: Nếu CUST_CODE, CUST_NAME, PHUONG_XA_NEW, TAX_CODE đều trống
     const cCode = row[1]?.toString().trim() || "";
     const cName = row[2]?.toString().trim() || "";
     const pXa = row[5]?.toString().trim() || "";
     const tCode = row[12]?.toString().trim() || "";
 
+    // Dừng xử lý nếu 4 cột chính đều trống
     if (!cCode && !cName && !pXa && !tCode) {
       return "STOP_PROCESSING"; 
     }
@@ -252,7 +251,7 @@ const Checker10 = () => {
           const results = [];
           for (let i = 0; i < rowsToProcess.length; i++) {
             const res = await processRow(rowsToProcess[i], i);
-            if (res === "STOP_PROCESSING") break; // Ngừng nạp dữ liệu ngay khi gặp dòng trống thỏa điều kiện
+            if (res === "STOP_PROCESSING") break; 
             if (res !== null) results.push(res);
           }
           setData(results);
@@ -264,11 +263,6 @@ const Checker10 = () => {
       }
     };
     reader.readAsBinaryString(file);
-  };
-
-  const confirmExport = () => {
-    if (data.length === 0) return;
-    setShowConfirmModal(true);
   };
 
   const executeExport = () => {
@@ -317,22 +311,6 @@ const Checker10 = () => {
     ];
 
     const ws = window.XLSX.utils.aoa_to_sheet(finalAOA);
-
-    const range = window.XLSX.utils.decode_range(ws['!ref']);
-    for (let C = range.s.c; C <= range.e.c; ++C) {
-      const cell1 = ws[window.XLSX.utils.encode_cell({ r: 0, c: C })];
-      if (cell1) {
-        cell1.s = { font: { bold: true, color: { rgb: "FF0000" } } };
-      }
-      const cell2 = ws[window.XLSX.utils.encode_cell({ r: 1, c: C })];
-      if (cell2) {
-        cell2.s = { font: { bold: true, color: { rgb: "FF0000" } } };
-      }
-    }
-
-    const wscols = EXPORT_TEMPLATE_HEADERS.map(h => ({ wch: h.length + 10 }));
-    ws['!cols'] = wscols;
-
     const wb = window.XLSX.utils.book_new();
     window.XLSX.utils.book_append_sheet(wb, ws, "DMS_Customer_Template");
     window.XLSX.writeFile(wb, `erpCustomerExpWeb_${new Date().getTime()}.xlsx`);
@@ -342,155 +320,73 @@ const Checker10 = () => {
 
   return (
     <div className="flex flex-col h-screen bg-[#f8fafc] font-sans overflow-hidden text-slate-800">
-      {/* Modal xác nhận Export */}
+      {/* Confirmation Modal */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"></div>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative z-10 border border-slate-200 animate-in zoom-in-95 duration-200">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative z-10 border border-slate-200">
             <div className={`p-5 flex flex-col items-center gap-4 text-center ${errorCount > 0 ? 'bg-red-50' : 'bg-emerald-50'}`}>
                <div className={`p-4 rounded-full ${errorCount > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
                  {errorCount > 0 ? <AlertTriangle size={32} /> : <Download size={32} />}
                </div>
                <div>
-                  <h3 className={`text-lg font-black uppercase ${errorCount > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
-                    Xác nhận xuất dữ liệu
-                  </h3>
-                  <p className="text-xs text-slate-500 font-bold mt-1">
-                    Bạn đang chuẩn bị xuất file ERP Customer Template
-                  </p>
+                  <h3 className={`text-lg font-black uppercase ${errorCount > 0 ? 'text-red-700' : 'text-emerald-700'}`}>Xác nhận xuất dữ liệu</h3>
+                  <p className="text-[10px] text-slate-500 font-bold mt-1">Hệ thống sẽ tạo file Excel theo template ERP</p>
                </div>
             </div>
-            
             <div className="p-6">
-              {errorCount > 0 ? (
-                <div className="bg-red-100/50 border border-red-200 rounded-lg p-3 mb-4">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle size={16} className="text-red-600 shrink-0 mt-0.5" />
-                    <div className="text-[11px] leading-relaxed">
-                      <span className="font-black text-red-700 uppercase underline block mb-1">Cảnh báo: Phát hiện {errorCount} dòng lỗi!</span>
-                      Dữ liệu đang có các giá trị trống hoặc sai danh mục. File xuất ra có thể sẽ không được chấp nhận. Bạn vẫn muốn tiếp tục?
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-emerald-100/50 border border-emerald-200 rounded-lg p-3 mb-4">
-                  <div className="flex items-center gap-2 text-emerald-700">
-                    <FileCheck size={16} />
-                    <span className="text-[11px] font-bold uppercase tracking-tight">Dữ liệu hiện tại đã sẵn sàng để xuất file.</span>
-                  </div>
+              {errorCount > 0 && (
+                <div className="bg-red-100/80 border border-red-200 rounded-lg p-3 mb-4 text-[11px] leading-relaxed text-red-800">
+                  <span className="font-black uppercase block mb-1 underline">Cảnh báo lỗi!</span>
+                  Dữ liệu chứa {errorCount} hàng chưa chuẩn. Bạn có chắc chắn muốn xuất không?
                 </div>
               )}
-
-              <div className="grid grid-cols-2 gap-3 mt-6">
-                <button 
-                  onClick={() => setShowConfirmModal(false)}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase transition-colors"
-                >
-                  Hủy bỏ (Cancel)
-                </button>
-                <button 
-                  onClick={executeExport}
-                  className={`px-4 py-2.5 text-white rounded-lg text-[10px] font-black uppercase shadow-lg shadow-black/10 transition-all active:scale-95 ${errorCount > 0 ? 'bg-red-600 hover:bg-red-700' : 'bg-[#057a10] hover:bg-emerald-700'}`}
-                >
-                  Đồng ý (Ok)
-                </button>
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <button onClick={() => setShowConfirmModal(false)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase transition-colors">Hủy</button>
+                <button onClick={executeExport} className={`px-4 py-2 text-white rounded-lg text-[10px] font-black uppercase ${errorCount > 0 ? 'bg-red-600 hover:bg-red-700' : 'bg-[#057a10] hover:bg-emerald-700'}`}>Đồng ý</button>
               </div>
             </div>
-            <button onClick={() => setShowConfirmModal(false)} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600">
-              <X size={18} />
-            </button>
           </div>
         </div>
       )}
 
       <header className="h-11 bg-[#057a10] text-white px-4 flex items-center justify-between shrink-0 shadow-md z-50">
         <div className="flex items-center gap-2.5">
-          <div className="bg-white/20 p-1 rounded-md">
-            <FileCheck size={18} className="text-white" />
-          </div>
+          <FileCheck size={18} />
           <h1 className="text-[12px] font-black uppercase tracking-tight">Checker [ERP Customer]</h1>
         </div>
         
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-black/10 border border-white/10">
+          <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-black/10 text-[9px] font-bold">
             <div className={`w-1.5 h-1.5 rounded-full ${dbStatus === 'online' ? 'bg-emerald-400' : 'bg-red-500'}`}></div>
-            <span className="text-[9px] font-bold uppercase">{dbStatus === 'online' ? 'DB Active' : 'Connecting...'}</span>
-            <button onClick={fetchMasterData} className="hover:rotate-180 transition-transform ml-0.5 opacity-70 hover:opacity-100">
-              <RefreshCw size={10}/>
-            </button>
+            <span>{dbStatus === 'online' ? 'DB Active' : 'Connecting...'}</span>
+            <RefreshCw size={10} className="cursor-pointer" onClick={fetchMasterData}/>
           </div>
-
           <input type="file" id="xlUp" className="hidden" onChange={handleFileUpload} accept=".xlsx, .xls" />
-          <label htmlFor="xlUp" className={`cursor-pointer px-4 py-1.5 bg-white/10 hover:bg-white/20 rounded text-[9px] font-black uppercase border border-white/20 transition-all ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}>
-            {isProcessing ? 'Đang Xử Lý...' : 'Nạp Excel'}
-          </label>
-          
-          <div className="flex items-center gap-2.5">
-            <button 
-              onClick={confirmExport} 
-              disabled={data.length === 0 || isProcessing} 
-              className="px-4 py-1.5 bg-white text-[#057a10] rounded text-[9px] font-black uppercase shadow-sm disabled:opacity-30 active:scale-95 transition-all"
-            >
-              Xuất File
-            </button>
-            <div className="w-[1px] h-4 bg-white/20 mx-1"></div>
-            <a href="https://checkmst.vercel.app/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-white hover:text-emerald-100 transition-colors">
-              <ExternalLink size={14} />
-              <span className="text-[9px] font-bold underline underline-offset-4 decoration-white/40 uppercase">Kiểm MST</span>
-            </a>
-          </div>
+          <label htmlFor="xlUp" className="cursor-pointer px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-[9px] font-black uppercase border border-white/20">Nạp Excel</label>
+          <button onClick={() => setShowConfirmModal(true)} disabled={data.length === 0} className="px-3 py-1.5 bg-white text-[#057a10] rounded text-[9px] font-black uppercase disabled:opacity-30">Xuất File</button>
+          <a href="https://checkmst.vercel.app/" target="_blank" className="text-white hover:underline text-[9px] font-bold uppercase flex items-center gap-1">Kiểm MST <ExternalLink size={10}/></a>
         </div>
       </header>
 
       <main className="flex-1 overflow-hidden p-2">
         {data.length > 0 ? (
           <div className="bg-white rounded-lg border border-slate-300 shadow-sm h-full flex flex-col overflow-hidden">
-            <div className="px-3 py-2 bg-slate-50 border-b border-slate-300 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-4">
-                 <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 uppercase">
-                   <ChevronRight size={14} className="text-[#057a10]"/> {fileName}
-                 </div>
-                 <div className="flex items-center gap-4 border-l border-slate-300 pl-4">
-                    <div className="flex items-center gap-1.5 text-[8px] font-bold text-slate-500 uppercase">
-                        <div className="w-2 h-2 bg-red-600 rounded-sm"></div> Thiếu Thông Tin
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[8px] font-bold text-slate-500 uppercase">
-                        <div className="w-2 h-2 bg-amber-500 rounded-sm"></div> Sai Danh Mục
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[8px] font-bold text-slate-500 uppercase">
-                        <span className="text-red-600 font-black px-1 rounded bg-yellow-400">NEW</span> = Khách Mới
-                    </div>
-                 </div>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                 <span className="text-[9px] font-bold text-slate-400 uppercase">Hàng: {data.length}</span>
-                 <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${errorCount > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                   {errorCount} Lỗi
-                 </span>
-              </div>
+            <div className="px-3 py-2 bg-slate-50 border-b border-slate-300 flex items-center justify-between text-[10px] font-bold uppercase text-slate-500 shrink-0">
+               <div>File: {fileName}</div>
+               <div className="flex gap-4">
+                 <span>Tổng: {data.length}</span>
+                 <span className={errorCount > 0 ? "text-red-600" : "text-emerald-600"}>{errorCount} Lỗi</span>
+               </div>
             </div>
 
-            <div className="flex-1 overflow-auto relative">
-              {isProcessing && (
-                <div className="absolute inset-0 bg-white/60 z-50 flex items-center justify-center backdrop-blur-[1px]">
-                    <div className="flex flex-col items-center gap-2">
-                        <RefreshCw className="animate-spin text-[#057a10]" size={24} />
-                        <span className="text-[9px] font-black uppercase tracking-widest text-[#057a10]">Đang xử lý dữ liệu...</span>
-                    </div>
-                </div>
-              )}
-              <table className="w-full border-separate border-spacing-0 text-[10.5px] min-w-max">
+            <div className="flex-1 overflow-auto">
+              <table className="w-full border-separate border-spacing-0 text-[10.5px]">
                 <thead>
                   <tr className="bg-slate-800 text-slate-300 sticky top-0 z-40">
-                    <th className="w-10 px-1 py-1.5 text-center border-b border-r border-slate-600 font-bold uppercase bg-slate-900 sticky left-0 z-50">#</th>
+                    <th className="w-10 px-1 py-1.5 text-center border-b border-r border-slate-600 font-bold uppercase sticky left-0 z-50 bg-slate-900">#</th>
                     {COLUMN_NAMES.map((h, i) => (
-                      <th key={i} style={{ width: i === 4 ? '280px' : 'auto', maxWidth: i === 4 ? '280px' : '250px' }}
-                        className={`px-2 py-1.5 text-left border-b border-r border-slate-600 font-bold uppercase whitespace-nowrap
-                          ${[5, 8, 9, 10].includes(i) ? 'bg-slate-700 text-emerald-300' : ''}
-                          ${i >= 19 ? 'bg-indigo-950 text-indigo-200' : ''}
-                        `}>
-                        {h}
-                      </th>
+                      <th key={i} className="px-2 py-1.5 text-left border-b border-r border-slate-600 font-bold uppercase whitespace-nowrap min-w-[100px]">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -500,43 +396,25 @@ const Checker10 = () => {
                       ${row.isError ? 'bg-red-100' : (idx % 2 === 1 ? 'bg-slate-100' : 'bg-white')}
                       hover:bg-emerald-100 transition-colors h-[28px]
                     `}>
-                      <td className={`px-1 py-1 text-center font-bold border-r border-slate-300 sticky left-0 z-20 ${row.isError ? 'text-red-600 bg-red-50' : 'text-slate-400'}`}>
+                      <td className="px-1 py-1 text-center font-bold border-r border-slate-300 sticky left-0 z-20 bg-indigo-100 text-indigo-700">
                         {row.rowNumber}
                       </td>
                       {row.content.map((cell, cIdx) => {
                         const isValErr = row.validateErrors.includes(cIdx);
                         const isDbErr = row.databaseErrors.includes(cIdx);
                         const isMap = row.mappedIndices.includes(cIdx);
-                        const isAddress = cIdx === 4;
-                        const isCustCode = cIdx === 1;
-                        const isNew = isCustCode && cell === "NEW";
+                        const isNew = row.isNewCustomer && cIdx === 1;
                         
-                        const isTargetBold = [1, 9, 10, 12, 14].includes(cIdx);
-
-                        let tdClass = `px-2 py-1 border-r border-slate-300 align-middle`;
-                        let style = isAddress ? { width: '280px', minWidth: '280px', maxWidth: '280px' } : { maxWidth: '250px' };
+                        let tdClass = `px-2 py-1 border-r border-slate-300 whitespace-nowrap overflow-hidden text-ellipsis max-w-[250px]`;
                         
-                        if (isAddress) tdClass += " whitespace-normal leading-tight break-words";
-                        else tdClass += " whitespace-nowrap overflow-hidden text-ellipsis text-[10px]";
-
-                        if (isValErr) {
-                          tdClass += " bg-red-600 text-white font-bold";
-                        } else if (isDbErr) {
-                          tdClass += " bg-amber-500 text-white font-bold";
-                        } else if (isMap) {
-                          tdClass += " bg-indigo-50 text-indigo-900 font-bold border-l border-indigo-300";
-                        } else if (isNew) {
-                          tdClass += " bg-yellow-100 font-bold"; // Tô màu Gold (Vàng) cho CUST_CODE NEW
-                        }
+                        if (isValErr) tdClass += " bg-red-600 text-white font-bold";
+                        else if (isDbErr) tdClass += " bg-amber-500 text-white font-bold";
+                        else if (isMap) tdClass += " bg-indigo-50 text-indigo-900 font-bold";
+                        else if (isNew) tdClass += " bg-yellow-100 font-bold text-black";
 
                         return (
-                          <td key={cIdx} className={tdClass} style={style} title={cell}>
-                            <span className={`
-                              ${isTargetBold ? "font-bold text-slate-900" : ""}
-                              ${isNew ? "tracking-tighter" : ""}
-                            `}>
-                              {isValErr ? (cell || "TRỐNG") : isDbErr ? (cell || "KO_KHỚP") : cell}
-                            </span>
+                          <td key={cIdx} className={tdClass} title={cell}>
+                            {isValErr ? (cell || "TRỐNG") : isDbErr ? (cell || "KO_KHỚP") : cell}
                           </td>
                         );
                       })}
@@ -547,36 +425,20 @@ const Checker10 = () => {
             </div>
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center bg-white rounded-xl border-2 border-dashed border-slate-300 shadow-sm">
-            <div className="p-8 bg-emerald-50 rounded-full mb-5 border border-emerald-100 shadow-inner">
-                <Database size={56} className="text-[#057a10] opacity-80" />
-            </div>
-            <h2 className="text-xl font-black uppercase text-slate-300 tracking-[0.2em] mb-4">Database Checker</h2>
-            <div className="flex gap-3">
-                <div className="px-5 py-2 bg-slate-50 rounded-xl border border-slate-200 flex flex-col items-center min-w-[100px]">
-                    <span className="text-[8px] font-bold text-slate-400 uppercase">Channel Master</span>
-                    <span className="text-base font-black text-slate-600">{validChannels.length}</span>
-                </div>
-                <div className="px-5 py-2 bg-slate-50 rounded-xl border border-slate-200 flex flex-col items-center min-w-[100px]">
-                    <span className="text-[8px] font-bold text-slate-400 uppercase">Address Records</span>
-                    <span className="text-base font-black text-slate-600">{addressPreviewCount.toLocaleString()}</span>
-                </div>
-            </div>
+          <div className="h-full flex flex-col items-center justify-center bg-white rounded-xl border-2 border-dashed border-slate-300">
+            <Database size={48} className="text-slate-200 mb-3" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Chưa có dữ liệu. Hãy nạp file Excel.</span>
           </div>
         )}
       </main>
 
-      <footer className="h-6 bg-white border-t border-slate-300 px-4 flex items-center justify-between text-[9px] text-slate-400 font-bold uppercase tracking-wider shrink-0">
-        <div>
-          <span>© {new Date().getFullYear()} [IT-Master HTCorp] - ERP Customer Validation Tool</span>
-        </div>
-        <div className="flex items-center gap-3">
-            <a href="https://masterdb.vercel.app/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-emerald-600 transition-colors">
-              <div className={`w-1.5 h-1.5 rounded-full ${dbStatus === 'online' ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
-              <span>{dbStatus === 'online' ? 'DB Synchronized' : 'DB Offline'}</span>
-              <ExternalLink size={10} className="ml-1 opacity-50"/>
-            </a>
-        </div>
+      <footer className="h-6 bg-white border-t border-slate-300 px-4 flex items-center justify-between text-[9px] text-slate-400 font-bold uppercase shrink-0">
+        <div>© {new Date().getFullYear()} [IT-Master HTCorp]</div>
+        <a href="https://masterdb.vercel.app/" target="_blank" className="flex items-center gap-1.5 hover:text-emerald-600">
+          <div className={`w-1.5 h-1.5 rounded-full ${dbStatus === 'online' ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+          <span>DB Synchronized</span>
+          <ExternalLink size={10}/>
+        </a>
       </footer>
     </div>
   );
