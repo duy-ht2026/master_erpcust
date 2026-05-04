@@ -497,8 +497,8 @@ const Checker10 = () => {
                 <tbody className="divide-y divide-slate-300">
                   {data.map((row, idx) => (
                     <tr key={idx} className={`
-                      ${row.isError ? 'bg-red-50/50' : (idx % 2 === 1 ? 'bg-slate-50' : 'bg-white')}
-                      hover:bg-emerald-50/40 transition-colors h-[28px]
+                      ${row.isError ? 'bg-red-100' : (idx % 2 === 1 ? 'bg-slate-100' : 'bg-white')}
+                      hover:bg-emerald-100 transition-colors h-[28px]
                     `}>
                       <td className={`px-1 py-1 text-center font-bold border-r border-slate-300 sticky left-0 z-20 ${row.isError ? 'text-red-600 bg-red-50' : 'text-slate-400'}`}>
                         {row.rowNumber}
@@ -526,7 +526,7 @@ const Checker10 = () => {
                         } else if (isMap) {
                           tdClass += " bg-indigo-50 text-indigo-900 font-bold border-l border-indigo-300";
                         } else if (isNew) {
-                          tdClass += " bg-yellow-400 text-black font-black"; // Tô màu Gold (Vàng) cho CUST_CODE NEW
+                          tdClass += " bg-yellow-100 font-bold"; // Tô màu Gold (Vàng) cho CUST_CODE NEW
                         }
 
                         return (
