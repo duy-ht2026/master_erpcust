@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Upload, Download, FileCheck, Database, RefreshCw, AlertCircle, ChevronRight, ExternalLink
+  Upload, Download, FileCheck, Database, RefreshCw, AlertCircle, ChevronRight, ExternalLink, X, AlertTriangle
 } from 'lucide-react';
 
 /**
  * PROJECT: Checker [ERP Customer]
- * VERSION: 2.1.1
+ * VERSION: 2.2.0
  * UPDATES: 
- * - Update Check MST URL to https://checkmst.vercel.app/
- * - Keep Bold text for specific columns: CUST_CODE, BIZ_TYPE, CUST_GROUP, TAX_CODE, TAX_NAME
- * - Keep DATE logic: Clear if not a valid date, not an error.
+ * - Custom Modal for Export Confirmation with Error Warning
+ * - Excel Export: Bold & Red text for Row 1 and Row 2
+ * - Keep Bold text for specific columns in UI
+ * - Keep DATE logic: Clear if not a valid date
  */
 
 const SUPABASE_URL = "https://etdnpahmxdeurxlcuwcu.supabase.co";
@@ -42,6 +43,7 @@ const Checker10 = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [dbStatus, setDbStatus] = useState('connecting');
   const [supabaseClient, setSupabaseClient] = useState(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   useEffect(() => {
     if (!window.XLSX && !document.getElementById('xlsx-sdk')) {
@@ -96,21 +98,18 @@ const Checker10 = () => {
 
   const formatExcelDate = (val) => {
     if (!val) return "";
-    // Xử lý số serial của Excel
     if (typeof val === 'number' && val > 30000) {
       const date = new Date((val - 25569) * 86400 * 1000);
       if (!isNaN(date.getTime())) {
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       }
     }
-    // Kiểm tra nếu là chuỗi định dạng ngày hợp lệ
     if (typeof val === 'string' && val.trim() !== "") {
         const date = new Date(val);
         if (!isNaN(date.getTime())) {
             return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
         }
     }
-    // Nếu không phải ngày, trả về rỗng và không báo lỗi
     return "";
   };
 
@@ -135,9 +134,7 @@ const Checker10 = () => {
 
     const content = COLUMN_NAMES.map((_, cIdx) => {
       const cell = row[cIdx];
-      // Xử lý riêng cho cột DATE (index 0)
       if (cIdx === 0) return formatExcelDate(cell);
-      
       let val = (cell === undefined || cell === null) ? "" : cell.toString().trim();
       if (cIdx === 1 && (val === "" || val.toUpperCase() === "NEW")) return "NEW";
       return val;
@@ -258,8 +255,14 @@ const Checker10 = () => {
     reader.readAsBinaryString(file);
   };
 
-  const exportFile = () => {
+  const confirmExport = () => {
+    if (data.length === 0) return;
+    setShowConfirmModal(true);
+  };
+
+  const executeExport = () => {
     if (data.length === 0 || !window.XLSX) return;
+    setShowConfirmModal(false);
 
     const exportRows = data.map(item => {
       const raw = item.content;
@@ -299,12 +302,34 @@ const Checker10 = () => {
     });
 
     const finalAOA = [
-      ["Dữ liệu này được export từ Web-App"],
+      ["Dữ liệu này được export từ Web-App (Checker ERP Customer)"],
       EXPORT_TEMPLATE_HEADERS,
       ...exportRows
     ];
 
     const ws = window.XLSX.utils.aoa_to_sheet(finalAOA);
+
+    // Bôi đậm và tô màu đỏ cho dòng 1 và dòng 2
+    // Lưu ý: Tính năng Style yêu cầu thư viện xlsx-js-style hoặc SheetJS Pro.
+    // Với thư viện cộng đồng 'xlsx', style thường bị bỏ qua, nhưng ta áp dụng cấu trúc cell object để hỗ trợ tốt nhất
+    const range = window.XLSX.utils.decode_range(ws['!ref']);
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      // Dòng 1 (Row 0)
+      const cell1 = ws[window.XLSX.utils.encode_cell({ r: 0, c: C })];
+      if (cell1) {
+        cell1.s = {
+          font: { bold: true, color: { rgb: "FF0000" } }
+        };
+      }
+      // Dòng 2 (Row 1)
+      const cell2 = ws[window.XLSX.utils.encode_cell({ r: 1, c: C })];
+      if (cell2) {
+        cell2.s = {
+          font: { bold: true, color: { rgb: "FF0000" } }
+        };
+      }
+    }
+
     const wscols = EXPORT_TEMPLATE_HEADERS.map(h => ({ wch: h.length + 10 }));
     ws['!cols'] = wscols;
 
@@ -313,8 +338,74 @@ const Checker10 = () => {
     window.XLSX.writeFile(wb, `erpCustomerExpWeb_${new Date().getTime()}.xlsx`);
   };
 
+  const errorCount = data.filter(d => d.isError).length;
+
   return (
     <div className="flex flex-col h-screen bg-[#f8fafc] font-sans overflow-hidden text-slate-800">
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"></div>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative z-10 border border-slate-200 animate-in zoom-in-95 duration-200">
+            <div className={`p-5 flex flex-col items-center gap-4 text-center ${errorCount > 0 ? 'bg-red-50' : 'bg-emerald-50'}`}>
+               <div className={`p-4 rounded-full ${errorCount > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                 {errorCount > 0 ? <AlertTriangle size={32} /> : <Download size={32} />}
+               </div>
+               <div>
+                  <h3 className={`text-lg font-black uppercase ${errorCount > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+                    Xác nhận xuất dữ liệu
+                  </h3>
+                  <p className="text-xs text-slate-500 font-bold mt-1">
+                    Bạn đang chuẩn bị xuất file ERP Customer Template
+                  </p>
+               </div>
+            </div>
+            
+            <div className="p-6">
+              {errorCount > 0 ? (
+                <div className="bg-red-100/50 border border-red-200 rounded-lg p-3 mb-4">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle size={16} className="text-red-600 shrink-0 mt-0.5" />
+                    <div className="text-[11px] leading-relaxed">
+                      <span className="font-black text-red-700 uppercase underline block mb-1">Cảnh báo: Phát hiện {errorCount} dòng lỗi!</span>
+                      Dữ liệu đang có các giá trị trống hoặc sai danh mục. File xuất ra có thể sẽ không được chấp nhận khi import vào hệ thống ERP. Bạn vẫn muốn tiếp tục?
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-emerald-100/50 border border-emerald-200 rounded-lg p-3 mb-4">
+                  <div className="flex items-center gap-2 text-emerald-700">
+                    <FileCheck size={16} />
+                    <span className="text-[11px] font-bold uppercase tracking-tight">Dữ liệu hiện tại đã sẵn sàng để xuất file.</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 mt-6">
+                <button 
+                  onClick={() => setShowConfirmModal(false)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase transition-colors"
+                >
+                  Hủy bỏ (Cancel)
+                </button>
+                <button 
+                  onClick={executeExport}
+                  className={`px-4 py-2.5 text-white rounded-lg text-[10px] font-black uppercase shadow-lg shadow-black/10 transition-all active:scale-95 ${errorCount > 0 ? 'bg-red-600 hover:bg-red-700' : 'bg-[#057a10] hover:bg-emerald-700'}`}
+                >
+                  Đồng ý (Ok)
+                </button>
+              </div>
+            </div>
+            <button 
+              onClick={() => setShowConfirmModal(false)}
+              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+
       <header className="h-11 bg-[#057a10] text-white px-4 flex items-center justify-between shrink-0 shadow-md z-50">
         <div className="flex items-center gap-2.5">
           <div className="bg-white/20 p-1 rounded-md">
@@ -339,7 +430,7 @@ const Checker10 = () => {
           
           <div className="flex items-center gap-2.5">
             <button 
-              onClick={exportFile} 
+              onClick={confirmExport} 
               disabled={data.length === 0 || isProcessing} 
               className="px-4 py-1.5 bg-white text-[#057a10] rounded text-[9px] font-black uppercase shadow-sm disabled:opacity-30 active:scale-95 transition-all"
             >
@@ -382,8 +473,8 @@ const Checker10 = () => {
               </div>
               <div className="flex items-center gap-3 shrink-0">
                  <span className="text-[9px] font-bold text-slate-400 uppercase">Hàng: {data.length}</span>
-                 <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${data.filter(d => d.isError).length > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                   {data.filter(d => d.isError).length} Lỗi
+                 <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${errorCount > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                   {errorCount} Lỗi
                  </span>
               </div>
             </div>
@@ -428,7 +519,6 @@ const Checker10 = () => {
                         const isAddress = cIdx === 4;
                         const isErrAddr = cell === "ERR_ADDR";
                         
-                        // Các cột cần bôi đậm: CUST_CODE(1), BIZ_TYPE(9), CUST_GROUP(10), TAX_CODE(12), TAX_NAME(14)
                         const isTargetBold = [1, 9, 10, 12, 14].includes(cIdx);
 
                         let tdClass = `px-2 py-1 border-r border-slate-300 align-middle`;
